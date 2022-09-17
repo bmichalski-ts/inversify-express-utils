@@ -11,7 +11,7 @@ describe('BaseHttpController', () => {
     done();
   });
 
-  it('Should contain httpContext instance', done => {
+  it('Should contain httpContext instance', async () => {
     interface SomeDependency {
       name: string;
     }
@@ -43,10 +43,10 @@ describe('BaseHttpController', () => {
 
     const server = new InversifyExpressServer(container);
 
-    void supertest(server.build())
+    await supertest(await server.build())
       .get('/')
       .set('x-custom', 'test-header!')
-      .expect(200, 'test-header! & SomeDependency!', done);
+      .expect(200, 'test-header! & SomeDependency!');
   });
 
   it('should support returning an HttpResponseMessage from a method',
@@ -64,7 +64,7 @@ describe('BaseHttpController', () => {
 
       const server = new InversifyExpressServer(new Container());
 
-      await supertest(server.build())
+      await supertest(await server.build())
         .get('/')
         .expect(200, '12345')
         .expect('x-custom', 'test-header')
@@ -89,7 +89,7 @@ describe('BaseHttpController', () => {
 
       const server = new InversifyExpressServer(new Container());
 
-      void await supertest(server.build())
+      await supertest(await server.build())
         .get('/')
         .expect(400, 'You done did that wrong');
     });

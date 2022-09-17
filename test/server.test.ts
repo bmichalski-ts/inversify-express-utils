@@ -3,7 +3,7 @@ import { interfaces } from 'inversify';
 import { Request, Response, Router, NextFunction, RequestHandler, json, CookieOptions } from 'express';
 import cookieParser from 'cookie-parser';
 import { injectable, Container } from 'inversify';
-import { AuthProvider, InversifyExpressServer, Principal } from '../src';
+import {AuthProvider, getRouteInfo, InversifyExpressServer, Principal} from '../src';
 import { controller, httpMethod, all, httpGet, httpPost, httpPut, httpPatch, httpHead, httpDelete, request, response, requestParam, requestBody, queryParam, requestHeaders, cookies, next, principal } from '../src/decorators';
 import { cleanUpMetadata } from '../src/utils';
 
@@ -11,14 +11,13 @@ describe('Integration Tests:', () => {
   let server: InversifyExpressServer;
   let container: interfaces.Container;
 
-  beforeEach(done => {
+  beforeEach(() => {
     cleanUpMetadata();
     container = new Container();
-    done();
   });
 
   describe('Routing & Request Handling:', () => {
-    it('should work for async controller methods', done => {
+    it('should work for async controller methods', async () => {
       @controller('/')
       class TestController {
         @httpGet('/') public getTest(req: Request, res: Response) {
@@ -29,12 +28,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', done);
+        .expect(200, 'GET');
     });
 
-    it('should work for async controller methods that fails', done => {
+    it('should work for async controller methods that fails', async () => {
       @controller('/')
       class TestController {
         @httpGet('/') public getTest(req: Request, res: Response) {
@@ -45,12 +45,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(500, done);
+        .expect(500);
     });
 
-    it('should work for methods which call nextFunc()', done => {
+    it('should work for methods which call nextFunc()', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -64,12 +65,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', done);
+        .expect(200, 'GET');
     });
 
-    it('should work for async methods which call nextFunc()', done => {
+    it('should work for async methods which call nextFunc()', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -88,12 +90,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', done);
+        .expect(200, 'GET');
     });
 
-    it('should work for async methods called by nextFunc()', done => {
+    it('should work for async methods called by nextFunc()', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -109,12 +112,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', done);
+        .expect(200, 'GET');
     });
 
-    it('should work for each shortcut decorator', done => {
+    it('should work for each shortcut decorator', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -137,23 +141,24 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
+
+      const agent = supertest(await server.build());
 
       const deleteFn = () => {
-        void agent.delete('/').expect(200, 'DELETE', done);
+        void agent.delete('/').expect(200, 'DELETE');
       };
       const head = () => {
         void agent.head('/').expect(200, 'HEAD', deleteFn);
       };
       const patch = () => { void agent.patch('/').expect(200, 'PATCH', head); };
-      const put = () => { void agent.put('/').expect(200, 'PUT', patch); };
-      const post = () => { void agent.post('/').expect(200, 'POST', put); };
-      const get = () => { void agent.get('/').expect(200, 'GET', post); };
 
-      get();
+      await agent.get('/').expect(200, 'GET');
+      await agent.post('/').expect(200, 'POST');
+      await agent.put('/').expect(200, 'PUT');
+      await agent.patch('/').expect(200, 'PATCH');
     });
 
-    it('should work for more obscure HTTP methods using the httpMethod decorator', done => {
+    it('should work for more obscure HTTP methods using the httpMethod decorator', async () => {
       @controller('/')
       class TestController {
         @httpMethod('propfind', '/')
@@ -163,12 +168,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .propfind('/')
-        .expect(200, 'PROPFIND', done);
+        .expect(200, 'PROPFIND');
     });
 
-    it('should use returned values as response', done => {
+    it('should use returned values as response', async () => {
       const result = { hello: 'world' };
 
       @controller('/')
@@ -180,12 +186,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, JSON.stringify(result), done);
+        .expect(200, JSON.stringify(result));
     });
 
-    it('should use custom router passed from configuration', () => {
+    it('should use custom router passed from configuration', async () => {
       @controller('/CaseSensitive')
       class TestController {
         @httpGet('/Endpoint') public get() {
@@ -198,7 +205,8 @@ describe('Integration Tests:', () => {
       });
 
       server = new InversifyExpressServer(container, customRouter);
-      const app = server.build();
+
+      const app = await server.build();
 
       const expectedSuccess = supertest(app)
         .get('/CaseSensitive/Endpoint')
@@ -212,14 +220,14 @@ describe('Integration Tests:', () => {
         .get('/CaseSensitive/endpoint')
         .expect(404);
 
-      return Promise.all([
+      await Promise.all([
         expectedSuccess,
         expectedNotFound1,
         expectedNotFound2,
       ]);
     });
 
-    it('should use custom routing configuration', () => {
+    it('should use custom routing configuration', async () => {
       @controller('/ping')
       class TestController {
         @httpGet('/endpoint') public get() {
@@ -233,12 +241,12 @@ describe('Integration Tests:', () => {
         { rootPath: '/api/v1' }
       );
 
-      return supertest(server.build())
+      await supertest(await server.build())
         .get('/api/v1/ping/endpoint')
         .expect(200, 'pong');
     });
 
-    it('should work for controller methods who\'s return value is falsey', done => {
+    it('should work for controller methods who\'s return value is falsey', async () => {
       @controller('/user')
       class TestController {
         @httpDelete('/') public async delete(): Promise<void> {
@@ -247,9 +255,10 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .delete('/user')
-        .expect(204, '', done);
+        .expect(204, '');
     });
   });
 
@@ -279,15 +288,14 @@ describe('Integration Tests:', () => {
     const spyB = jest.fn().mockImplementation(middleware.b);
     const spyC = jest.fn().mockImplementation(middleware.c);
 
-    beforeEach(done => {
+    beforeEach(() => {
       spyA.mockClear();
       spyB.mockClear();
       spyC.mockClear();
       result = '';
-      done();
     });
 
-    it('should call method-level middleware correctly (GET)', done => {
+    it('should call method-level middleware correctly (GET)', async () => {
       @controller('/')
       class TestController {
         @httpGet('/', spyA, spyB, spyC)
@@ -297,19 +305,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.get('/')
-        .expect(200, 'GET', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .get('/')
+        .expect(200, 'GET');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call method-level middleware correctly (POST)', done => {
+    it('should call method-level middleware correctly (POST)', async () => {
       @controller('/')
       class TestController {
         @httpPost('/', spyA, spyB, spyC)
@@ -319,19 +326,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.post('/')
-        .expect(200, 'POST', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .post('/')
+        .expect(200, 'POST');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call method-level middleware correctly (PUT)', done => {
+    it('should call method-level middleware correctly (PUT)', async () => {
       @controller('/')
       class TestController {
         @httpPut('/', spyA, spyB, spyC)
@@ -341,19 +347,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.put('/')
-        .expect(200, 'PUT', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .put('/')
+        .expect(200, 'PUT');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call method-level middleware correctly (PATCH)', done => {
+    it('should call method-level middleware correctly (PATCH)', async () => {
       @controller('/')
       class TestController {
         @httpPatch('/', spyA, spyB, spyC)
@@ -363,19 +368,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.patch('/')
-        .expect(200, 'PATCH', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .patch('/')
+        .expect(200, 'PATCH');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call method-level middleware correctly (HEAD)', done => {
+    it('should call method-level middleware correctly (HEAD)', async () => {
       @controller('/')
       class TestController {
         @httpHead('/', spyA, spyB, spyC)
@@ -385,19 +389,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.head('/')
-        .expect(200, 'HEAD', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .head('/')
+        .expect(200, undefined);
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call method-level middleware correctly (DELETE)', done => {
+    it('should call method-level middleware correctly (DELETE)', async () => {
       @controller('/')
       class TestController {
         @httpDelete('/', spyA, spyB, spyC)
@@ -407,19 +410,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.delete('/')
-        .expect(200, 'DELETE', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .delete('/')
+        .expect(200, 'DELETE');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call method-level middleware correctly (ALL)', done => {
+    it('should call method-level middleware correctly (ALL)', async () => {
       @controller('/')
       class TestController {
         @all('/', spyA, spyB, spyC)
@@ -429,19 +431,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      const agent = supertest(server.build());
 
-      void agent.get('/')
-        .expect(200, 'ALL', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+      await supertest(await server.build())
+        .get('/')
+        .expect(200, 'ALL');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call controller-level middleware correctly', done => {
+    it('should call controller-level middleware correctly', async () => {
       @controller('/', spyA, spyB, spyC)
       class TestController {
         @httpGet('/')
@@ -451,18 +452,18 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+        .expect(200, 'GET');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call server-level middleware correctly', done => {
+    it('should call server-level middleware correctly', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -479,18 +480,17 @@ describe('Integration Tests:', () => {
         app.use(spyC);
       });
 
-      void supertest(server.build())
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+        .expect(200, 'GET');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should call all middleware in correct order', done => {
+    it('should call all middleware in correct order', async () => {
       @controller('/', spyB)
       class TestController {
         @httpGet('/', spyC)
@@ -505,18 +505,17 @@ describe('Integration Tests:', () => {
         app.use(spyA);
       });
 
-      void supertest(server.build())
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'GET', () => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(spyC).toHaveBeenCalledTimes(1);
-          expect(result).toBe('abc');
-          done();
-        });
+        .expect(200, 'GET');
+
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(spyC).toHaveBeenCalledTimes(1);
+      expect(result).toBe('abc');
     });
 
-    it('should resolve controller-level middleware', () => {
+    it('should resolve controller-level middleware', async () => {
       const symbolId = Symbol.for('spyA');
       const strId = 'spyB';
 
@@ -533,18 +532,16 @@ describe('Integration Tests:', () => {
 
       server = new InversifyExpressServer(container);
 
-      const agent = supertest(server.build());
+      await supertest(await server.build())
+        .get('/')
+        .expect(200, 'GET');
 
-      return agent.get('/')
-        .expect(200, 'GET')
-        .then(() => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(result).toBe('ab');
-        });
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(result).toBe('ab');
     });
 
-    it('should resolve method-level middleware', () => {
+    it('should resolve method-level middleware', async () => {
       const symbolId = Symbol.for('spyA');
       const strId = 'spyB';
 
@@ -561,18 +558,16 @@ describe('Integration Tests:', () => {
 
       server = new InversifyExpressServer(container);
 
-      const agent = supertest(server.build());
+      await supertest(await server.build())
+        .get('/')
+        .expect(200, 'GET');
 
-      return agent.get('/')
-        .expect(200, 'GET')
-        .then(() => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(result).toBe('ab');
-        });
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(result).toBe('ab');
     });
 
-    it('should compose controller- and method-level middleware', () => {
+    it('should compose controller- and method-level middleware', async () => {
       const symbolId = Symbol.for('spyA');
       const strId = 'spyB';
 
@@ -587,20 +582,18 @@ describe('Integration Tests:', () => {
 
       server = new InversifyExpressServer(container);
 
-      const agent = supertest(server.build());
+      await supertest(await server.build())
+        .get('/')
+        .expect(200, 'GET');
 
-      return agent.get('/')
-        .expect(200, 'GET')
-        .then(() => {
-          expect(spyA).toHaveBeenCalledTimes(1);
-          expect(spyB).toHaveBeenCalledTimes(1);
-          expect(result).toBe('ab');
-        });
+      expect(spyA).toHaveBeenCalledTimes(1);
+      expect(spyB).toHaveBeenCalledTimes(1);
+      expect(result).toBe('ab');
     });
   });
 
   describe('Parameters:', () => {
-    it('should bind a method parameter to the url parameter of the web request', done => {
+    it('should bind a method parameter to the url parameter of the web request', async () => {
       @controller('/')
       class TestController {
         @httpGet(':id')
@@ -614,12 +607,12 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+      await supertest(await server.build())
         .get('/foo')
-        .expect(200, 'foo', done);
+        .expect(200, 'foo');
     });
 
-    it('should bind a method parameter to the request object', done => {
+    it('should bind a method parameter to the request object', async () => {
       @controller('/')
       class TestController {
         @httpGet(':id')
@@ -631,12 +624,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/GET')
-        .expect(200, 'GET', done);
+        .expect(200, 'GET');
     });
 
-    it('should bind a method parameter to the response object', done => {
+    it('should bind a method parameter to the response object', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -648,12 +642,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'foo', done);
+        .expect(200, 'foo');
     });
 
-    it('should bind a method parameter to a query parameter', done => {
+    it('should bind a method parameter to a query parameter', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -665,13 +660,14 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
         .query('id=foo')
-        .expect(200, 'foo', done);
+        .expect(200, 'foo');
     });
 
-    it('should bind a method parameter to the request body', done => {
+    it('should bind a method parameter to the request body', async () => {
       @controller('/')
       class TestController {
         @httpPost('/') public getTest(@requestBody() reqBody: string) {
@@ -684,13 +680,14 @@ describe('Integration Tests:', () => {
       server.setConfig(app => {
         app.use(json());
       });
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .post('/')
         .send(body)
-        .expect(200, body, done);
+        .expect(200, body);
     });
 
-    it('should bind a method parameter to the request headers', done => {
+    it('should bind a method parameter to the request headers', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -701,13 +698,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+      await supertest(await server.build())
         .get('/')
         .set('TestHead', 'foo')
-        .expect(200, 'foo', done);
+        .expect(200, 'foo');
     });
 
-    it('should be case insensitive to request headers', done => {
+    it('should be case insensitive to request headers', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -718,13 +715,14 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
         .set('TestHead', 'foo')
-        .expect(200, 'foo', done);
+        .expect(200, 'foo');
     });
 
-    it('should bind a method parameter to a cookie', done => {
+    it('should bind a method parameter to a cookie', async () => {
       @controller('/')
       class TestController {
         @httpGet('/') public getCookie(
@@ -740,13 +738,14 @@ describe('Integration Tests:', () => {
       server.setConfig(app => {
         app.use(cookieParser());
       });
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
         .set('Cookie', 'Cookie=hey')
-        .expect(200, 'hey', done);
+        .expect(200, 'hey');
     });
 
-    it('should bind a method parameter to the next function', done => {
+    it('should bind a method parameter to the next function', async () => {
       @controller('/')
       class TestController {
         @httpGet('/') public getTest(@next() nextFunc: NextFunction) {
@@ -759,12 +758,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'foo', done);
+        .expect(200, 'foo');
     });
 
-    it('should bind a method parameter to a principal with null (empty) details when no AuthProvider is set.', done => {
+    it('should bind a method parameter to a principal with null (empty) details when no AuthProvider is set.', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -776,12 +776,13 @@ describe('Integration Tests:', () => {
       }
 
       server = new InversifyExpressServer(container);
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, '', done);
+        .expect(200, '');
     });
 
-    it('should bind a method parameter to a principal with valid details when an AuthProvider is set.', done => {
+    it('should bind a method parameter to a principal with valid details when an AuthProvider is set.', async () => {
       @controller('/')
       class TestController {
         @httpGet('/')
@@ -815,9 +816,10 @@ describe('Integration Tests:', () => {
         null,
         CustomAuthProvider
       );
-      void supertest(server.build())
+
+      await supertest(await server.build())
         .get('/')
-        .expect(200, 'something', done);
+        .expect(200, 'something');
     });
   });
 });

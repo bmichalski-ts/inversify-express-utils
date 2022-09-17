@@ -9,7 +9,7 @@ describe('HttpContex', () => {
     done();
   });
 
-  it('Should be able to httpContext manually with the @injectHttpContext decorator', done => {
+  it('Should be able to httpContext manually with the @injectHttpContext decorator', async () => {
     interface SomeDependency {
       name: string;
     }
@@ -37,9 +37,9 @@ describe('HttpContex', () => {
 
     const server = new InversifyExpressServer(container);
 
-    void supertest(server.build())
+    await supertest(await server.build())
       .get('/')
       .set('x-custom', 'test-header!')
-      .expect(200, 'test-header! & SomeDependency!', done);
+      .expect(200, 'test-header! & SomeDependency!');
   });
 });

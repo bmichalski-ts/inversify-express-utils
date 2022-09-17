@@ -2,18 +2,18 @@ import { interfaces } from 'inversify';
 import { METADATA_KEY, NO_CONTROLLERS_FOUND, TYPE } from './constants';
 import type { Controller, ControllerMetadata, ControllerMethodMetadata, ControllerParameterMetadata, DecoratorTarget, IHttpActionResult } from './interfaces';
 
-export function getControllersFromContainer(
+export const getControllersFromContainer = async(
   container: interfaces.Container,
   forceControllers: boolean,
-): Array<Controller> {
+): Promise<Array<Controller>> => {
   if (container.isBound(TYPE.Controller)) {
-    return container.getAll<Controller>(TYPE.Controller);
+    return container.getAllAsync<Controller>(TYPE.Controller);
   } if (forceControllers) {
     throw new Error(NO_CONTROLLERS_FOUND);
   } else {
     return [];
   }
-}
+};
 
 export function getControllersFromMetadata(): Array<DecoratorTarget> {
   const arrayOfControllerMetadata: Array<ControllerMetadata> =

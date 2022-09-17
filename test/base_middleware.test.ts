@@ -2,7 +2,16 @@ import { NextFunction, Request, Response } from 'express';
 import { parallel } from 'async';
 import { Container, injectable, inject, optional, } from 'inversify';
 import supertest from 'supertest';
-import { InversifyExpressServer, controller, httpGet, BaseMiddleware, BaseHttpController, Principal, AuthProvider, } from '../src/index';
+import {
+  InversifyExpressServer,
+  controller,
+  httpGet,
+  BaseMiddleware,
+  BaseHttpController,
+  Principal,
+  AuthProvider,
+  getRouteInfo,
+} from '../src/index';
 import { cleanUpMetadata } from '../src/utils';
 
 describe('BaseMiddleware', () => {
@@ -11,7 +20,7 @@ describe('BaseMiddleware', () => {
     done();
   });
 
-  it('Should be able to inject BaseMiddleware implementations', done => {
+  it('Should be able to inject BaseMiddleware implementations', async () => {
     const TYPES = {
       LoggerMiddleware: Symbol.for('LoggerMiddleware'),
       SomeDependency: Symbol.for('SomeDependency'),
@@ -115,17 +124,16 @@ describe('BaseMiddleware', () => {
       CustomAuthProvider,
     );
 
-    void supertest(server.build())
+    await supertest(await server.build())
       .get('/')
-      .expect(200, 'test@test.com', () => {
-        expect(principalInstanceCount).toBe(1);
-        expect(logEntries.length).toBe(3);
-        expect(logEntries[0]).toBe('Hello from controller middleware!');
-        expect(logEntries[1]).toBe('test@test.com => / SomeDependency!');
-        expect(logEntries[2])
-          .toBe('test@test.com => isAuthenticated() => true');
-        done();
-      });
+      .expect(200, 'test@test.com');
+
+    expect(principalInstanceCount).toBe(1);
+    expect(logEntries.length).toBe(3);
+    expect(logEntries[0]).toBe('Hello from controller middleware!');
+    expect(logEntries[1]).toBe('test@test.com => / SomeDependency!');
+    expect(logEntries[2])
+      .toBe('test@test.com => isAuthenticated() => true');
   });
 
   it('Should allow the middleware to inject services in a HTTP request scope', done => {
@@ -190,21 +198,23 @@ describe('BaseMiddleware', () => {
     container.bind<Service>(TYPES.Service).to(Service);
     container.bind<string>(TYPES.TraceIdValue).toConstantValue('undefined');
 
-    const api = new InversifyExpressServer(container).build();
+    const server = new InversifyExpressServer(container);
 
-    const expectedRequests = 100;
-    let handledRequests = 0;
+    server.build().then((api) => {
+      const expectedRequests = 100;
+      let handledRequests = 0;
 
-    run(expectedRequests, (executionId: number) => supertest(api)
-      .get('/')
-      .set(TRACE_HEADER, `trace-id-${executionId}`)
-      .expect(200, `trace-id-${executionId}`)
-      .then(res => {
-        handledRequests += 1;
-      }), (err: Error | null | undefined) => {
-        expect(handledRequests).toBe(expectedRequests);
-        done(err);
-      });
+      run(expectedRequests, (executionId: number) => supertest(api)
+        .get('/')
+        .set(TRACE_HEADER, `trace-id-${executionId}`)
+        .expect(200, `trace-id-${executionId}`)
+        .then(res => {
+          handledRequests += 1;
+        }), (err: Error | null | undefined) => {
+          expect(handledRequests).toBe(expectedRequests);
+          done(err);
+        });
+    }).catch(done);
   });
 
   it('Should not allow services injected into a HTTP request scope to be accessible outside the request scope', done => {
@@ -252,11 +262,13 @@ describe('BaseMiddleware', () => {
     container.bind<TransactionMiddleware>(
       TYPES.TransactionMiddleware,
     ).to(TransactionMiddleware);
-    const app = new InversifyExpressServer(container).build();
 
-    void supertest(app)
-      .get('/1')
-      .expect(200, 'I am transaction #1', () => {
+    const server = new InversifyExpressServer(container);
+
+    void server.build().then((app) => {
+      void supertest(app)
+        .get('/1')
+        .expect(200, 'I am transaction #1', () => {
         void supertest(app)
           .get('/1')
           .expect(200, 'I am transaction #2', () => {
@@ -264,7 +276,8 @@ describe('BaseMiddleware', () => {
               .get('/2')
               .expect(200, '', () => done() as unknown);
           });
-      });
+        });
+    });
   });
 });
 

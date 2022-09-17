@@ -4,10 +4,10 @@ import { getControllersFromContainer, getControllerMetadata, getControllerMethod
 import type { RouteDetails, RouteInfo, RawMetadata } from './interfaces';
 
 
-export function getRouteInfo(
+export const getRouteInfo = async(
   container: inversifyInterfaces.Container,
-): Array<RouteInfo> {
-  const raw = getRawMetadata(container);
+): Promise<Array<RouteInfo>> => {
+  const raw = await getRawMetadata(container);
 
   return raw.map(r => {
     const controllerId = (r.controllerMetadata.target as { name: string }).name;
@@ -77,14 +77,14 @@ export function getRouteInfo(
       endpoints,
     };
   });
-}
+};
 
-export function getRawMetadata(
+export const getRawMetadata = async (
   container: inversifyInterfaces.Container
-): Array<RawMetadata> {
-  const controllers = getControllersFromContainer(container, true);
+): Promise<Array<RawMetadata>> => {
+  const controllers = await getControllersFromContainer(container, true);
 
-  return controllers.map(controller => {
+  return controllers.map((controller) => {
     const { constructor } = controller;
 
     return {
@@ -93,4 +93,4 @@ export function getRawMetadata(
       parameterMetadata: getControllerParameterMetadata(constructor),
     };
   });
-}
+};

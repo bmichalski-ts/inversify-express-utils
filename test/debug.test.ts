@@ -8,7 +8,7 @@ describe('Debug utils', () => {
     done();
   });
 
-  it('should be able to get router info', () => {
+  it('should be able to get router info', async () => {
     const container = new Container();
 
     @controller('/api/user')
@@ -53,9 +53,9 @@ describe('Debug utils', () => {
     };
 
     const server = new InversifyExpressServer(container);
-    server.build();
+    await server.build();
 
-    const routeInfo = getRouteInfo(container);
+    const routeInfo = await getRouteInfo(container);
 
     expect(routeInfo[0]?.controller).toBe(TYPES.OrderController);
     expect(routeInfo[0]?.endpoints[0]?.route).toBe('GET /api/order/');
@@ -86,7 +86,7 @@ describe('Debug utils', () => {
     }
   });
 
-  it('should be able to handle missig parameter metadata', () => {
+  it('should be able to handle missig parameter metadata', async () => {
     const container = new Container();
 
     @controller('/api/order')
@@ -107,9 +107,9 @@ describe('Debug utils', () => {
     };
 
     const server = new InversifyExpressServer(container);
-    server.build();
+    await server.build();
 
-    const routeInfo = getRouteInfo(container);
+    const routeInfo = await getRouteInfo(container);
 
     expect(routeInfo[0]?.controller).toBe(TYPES.OrderController);
     expect(routeInfo[0]?.endpoints[0]?.route).toBe('GET /api/order/');

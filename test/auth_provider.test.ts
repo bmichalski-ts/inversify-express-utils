@@ -9,7 +9,7 @@ describe('AuthProvider', () => {
     done();
   });
 
-  it('Should be able to access current user via HttpContext', done => {
+  it('Should be able to access current user via HttpContext', async () => {
     interface SomeDependency {
       name: string;
     }
@@ -81,8 +81,8 @@ describe('AuthProvider', () => {
       CustomAuthProvider,
     );
 
-    void supertest(server.build())
+    await supertest(await server.build())
       .get('/')
-      .expect(200, 'SomeDependency!@test.com & SomeDependency!', done);
+      .expect(200, 'SomeDependency!@test.com & SomeDependency!');
   });
 });

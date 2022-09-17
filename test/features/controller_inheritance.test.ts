@@ -1,13 +1,13 @@
 import { Container, injectable } from 'inversify';
 import supertest from 'supertest';
-import { json, urlencoded } from 'express';
+import { Application, json, urlencoded } from 'express';
 import { InversifyExpressServer } from '../../src/server';
 import { controller, httpGet, requestParam, httpDelete, httpPost, httpPut, requestBody, } from '../../src/decorators';
 import { cleanUpMetadata } from '../../src/utils';
 
 type ResponseBody = { args: string, status: number };
 
-function getDemoServer() {
+const getDemoServer = (): Promise<Application> => {
   interface Movie {
     name: string;
   }
@@ -103,10 +103,8 @@ function getDemoServer() {
     a.use(urlencoded({ extended: true }));
   });
 
-  const server = app.build();
-
-  return server;
-}
+  return app.build();
+};
 
 describe('Derived controller', () => {
   beforeEach(done => {
@@ -114,124 +112,113 @@ describe('Derived controller', () => {
     done();
   });
 
-  it('Can access methods decorated with @httpGet from parent', done => {
-    const server = getDemoServer();
+  it('Can access methods decorated with @httpGet from parent', async () => {
+    const server = await getDemoServer();
 
-    void supertest(server).get('/api/v1/movies')
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status).toEqual('BASE GET!');
-        done();
-      });
+    const res = await supertest(server).get('/api/v1/movies')
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status).toEqual('BASE GET!');
   });
 
-  it('Can access methods decorated with @httpGet from parent', done => {
-    const server = getDemoServer();
+  it('Can access methods decorated with @httpGet from parent', async () => {
+    const server = await getDemoServer();
     const id = 5;
 
-    void supertest(server).get(`/api/v1/movies/${id}`)
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status).toEqual(`BASE GET BY ID! ${id}`);
-        done();
-      });
+    const res = await supertest(server)
+      .get(`/api/v1/movies/${id}`)
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status).toEqual(`BASE GET BY ID! ${id}`);
   });
 
-  it('Can access methods decorated with @httpPost from parent', done => {
-    const server = getDemoServer();
+  it('Can access methods decorated with @httpPost from parent', async () => {
+    const server = await getDemoServer();
     const movie = { name: 'The Shining' };
     const status = 'BASE POST!';
 
-    void supertest(server).post('/api/v1/movies')
+    const res = await supertest(server)
+      .post('/api/v1/movies')
       .send(movie)
       .set('Content-Type', 'application/json')
       .set('Accept', 'application/json')
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status).toEqual(status);
-        expect(r.args).toEqual(movie);
-        done();
-      });
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status).toEqual(status);
+    expect(r.args).toEqual(movie);
   });
 
-  it('Can access methods decorated with @httpPut from parent', done => {
-    const server = getDemoServer();
+  it('Can access methods decorated with @httpPut from parent', async () => {
+    const server = await getDemoServer();
     const id = 5;
     const movie = { name: 'The Shining' };
 
-    void supertest(server).put(`/api/v1/movies/${id}`)
+    const res = await supertest(server)
+      .put(`/api/v1/movies/${id}`)
       .send(movie)
       .set('Content-Type', 'application/json')
       .set('Accept', 'application/json')
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status).toEqual(`BASE PUT! ${id}`);
-        expect(r.args).toEqual(movie);
-        done();
-      });
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status).toEqual(`BASE PUT! ${id}`);
+    expect(r.args).toEqual(movie);
   });
 
-  it('Can access methods decorated with @httpDelete from parent', done => {
-    const server = getDemoServer();
+  it('Can access methods decorated with @httpDelete from parent', async () => {
+    const server = await getDemoServer();
     const id = 5;
 
-    void supertest(server).delete(`/api/v1/movies/${id}`)
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status).toEqual(`BASE DELETE! ${id}`);
-        done();
-      });
+    const res = await supertest(server)
+      .delete(`/api/v1/movies/${id}`)
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status).toEqual(`BASE DELETE! ${id}`);
   });
 
-  it('Derived controller can have its own methods', done => {
-    const server = getDemoServer();
+  it('Derived controller can have its own methods', async () => {
+    const server = await getDemoServer();
     const movieId = 5;
     const actorId = 3;
 
-    void supertest(server).delete(`/api/v1/movies/${movieId}/actors/${actorId}`)
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status)
-          .toEqual(`DERIVED DELETE ACTOR! MOVIECONTROLLER1 ${movieId} ${actorId}`);
-        done();
-      });
+    const res = await supertest(server)
+      .delete(`/api/v1/movies/${movieId}/actors/${actorId}`)
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status)
+      .toEqual(`DERIVED DELETE ACTOR! MOVIECONTROLLER1 ${movieId} ${actorId}`);
   });
 
-  it('Derived controller 2 can have its own methods', done => {
-    const server = getDemoServer();
+  it('Derived controller 2 can have its own methods', async () => {
+    const server = await getDemoServer();
     const movieId = 5;
     const actorId = 3;
 
-    void supertest(server)
+    const res = await supertest(server)
       .delete(`/api/v1/movies2/${movieId}/actors/${actorId}`)
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status)
-          .toEqual(`DERIVED DELETE ACTOR! MOVIECONTROLLER2 ${movieId} ${actorId}`);
-        done();
-      });
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status)
+      .toEqual(`DERIVED DELETE ACTOR! MOVIECONTROLLER2 ${movieId} ${actorId}`);
   });
 
-  it('Derived controller 3 can have its own methods', done => {
-    const server = getDemoServer();
+  it('Derived controller 3 can have its own methods', async () => {
+    const server = await getDemoServer();
     const movieId = 5;
     const actorId = 3;
 
-    void supertest(server)
+    const res = await supertest(server)
       .delete(`/api/v1/movies3/${movieId}/actors/${actorId}`)
-      .expect(200)
-      .then(res => {
-        const r = res.body as ResponseBody;
-        expect(r.status)
-          .toEqual(`DERIVED DELETE ACTOR! MOVIECONTROLLER3 ${movieId} ${actorId}`);
-        done();
-      });
+      .expect(200);
+
+    const r = res.body as ResponseBody;
+    expect(r.status)
+      .toEqual(`DERIVED DELETE ACTOR! MOVIECONTROLLER3 ${movieId} ${actorId}`);
   });
 });

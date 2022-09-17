@@ -82,7 +82,7 @@ export class InversifyExpressServer {
   /**
    * Applies all routes and configuration to the server, returning the express application.
    */
-  public build(): express.Application {
+  public async build(): Promise<express.Application> {
     // The very first middleware to be invoked
     // it creates a new httpContext and attaches it to the
     // current request as metadata using Reflect
@@ -107,7 +107,7 @@ export class InversifyExpressServer {
       this._configFn.apply(undefined, [this._app]);
     }
 
-    this.registerControllers();
+    await this.registerControllers();
 
     // register error handlers after controllers
     if (this._errorConfigFn) {
@@ -117,7 +117,7 @@ export class InversifyExpressServer {
     return this._app;
   }
 
-  private registerControllers(): void {
+  private async registerControllers(): Promise<void> {
     // Fake HttpContext is needed during registration
     this._container
       .bind<HttpContext>(TYPE.HttpContext)
@@ -137,75 +137,89 @@ export class InversifyExpressServer {
         .whenTargetNamed(name);
     });
 
-    const controllers = getControllersFromContainer(
+    const controllers = await getControllersFromContainer(
       this._container,
       this._forceControllers,
     );
 
-    controllers.forEach((controller: Controller) => {
-      const controllerMetadata = getControllerMetadata(controller.constructor);
-      const methodMetadata = getControllerMethodMetadata(
-        controller.constructor
-      );
-      const parameterMetadata = getControllerParameterMetadata(
-        controller.constructor
-      );
-
-      if (controllerMetadata && methodMetadata) {
-        const controllerMiddleware = this.resolveMidleware(
-          ...controllerMetadata.middleware,
+    await Promise.all(
+      controllers.map(async (controller: Controller) => {
+        const controllerMetadata = getControllerMetadata(
+          controller.constructor
+        );
+        const methodMetadata = getControllerMethodMetadata(
+          controller.constructor
+        );
+        const parameterMetadata = getControllerParameterMetadata(
+          controller.constructor
         );
 
-        methodMetadata.forEach((metadata: ControllerMethodMetadata) => {
-          let paramList: Array<ParameterMetadata> = [];
-          if (parameterMetadata) {
-            paramList = parameterMetadata[metadata.key] || [];
-          }
-          const handler: express.RequestHandler = this.handlerFactory(
-            (controllerMetadata.target as { name: string }).name,
-            metadata.key,
-            paramList,
+        if (controllerMetadata && methodMetadata) {
+          const controllerMiddleware = await this.resolveMidleware(
+            ...controllerMetadata.middleware,
           );
-          const routeMiddleware = this.resolveMidleware(...metadata.middleware);
-          this._router[metadata.method](
-            `${controllerMetadata.path}${metadata.path}`,
-            ...controllerMiddleware,
-            ...routeMiddleware,
-            handler,
+
+          await Promise.all(
+            methodMetadata.map(async (
+              metadata: ControllerMethodMetadata
+            ) => {
+              let paramList: Array<ParameterMetadata> = [];
+              if (parameterMetadata) {
+                paramList = parameterMetadata[metadata.key] || [];
+              }
+              const handler: express.RequestHandler = this.handlerFactory(
+                (controllerMetadata.target as { name: string }).name,
+                metadata.key,
+                paramList,
+              );
+              const routeMiddleware = await this.resolveMidleware(
+                ...metadata.middleware
+              );
+              this._router[metadata.method](
+                `${controllerMetadata.path}${metadata.path}`,
+                ...controllerMiddleware,
+                ...routeMiddleware,
+                handler,
+              );
+            })
           );
-        });
-      }
-    });
+        }
+      })
+    );
 
     this._app.use(this._routingConfig.rootPath, this._router);
   }
 
-  private resolveMidleware(
+  private async resolveMidleware(
     ...middleware: Array<Middleware>
-  ): Array<express.RequestHandler> {
-    return middleware.map(middlewareItem => {
-      if (!this._container.isBound(middlewareItem)) {
-        return middlewareItem as express.RequestHandler;
-      }
+  ): Promise<Array<express.RequestHandler>> {
+    return Promise.all(
+      middleware.map(async (middlewareItem) => {
+        if (!this._container.isBound(middlewareItem)) {
+          return middlewareItem as express.RequestHandler;
+        }
 
-      type MiddlewareInstance = RequestHandler | BaseMiddleware;
-      const middlewareInstance = this._container
-        .get<MiddlewareInstance>(middlewareItem);
+        type MiddlewareInstance = RequestHandler | BaseMiddleware;
+        const middlewareInstance = await this._container
+          .getAsync<MiddlewareInstance>(middlewareItem);
 
-      if (middlewareInstance instanceof BaseMiddleware) {
-        return (
-          req: Request,
-          res: Response,
-          next: NextFunction,
-        ): void => {
-          const mReq = this._container.get<BaseMiddleware>(middlewareItem);
-          mReq.httpContext = this._getHttpContext(req);
-          mReq.handler(req, res, next);
-        };
-      }
+        if (middlewareInstance instanceof BaseMiddleware) {
+          return async (
+            req: Request,
+            res: Response,
+            next: NextFunction,
+          ) => {
+            const mReq = await this._container.getAsync<BaseMiddleware>(
+              middlewareItem
+            );
+            mReq.httpContext = this._getHttpContext(req);
+            mReq.handler(req, res, next);
+          };
+        }
 
-      return middlewareInstance;
-    });
+        return middlewareInstance;
+      })
+    );
   }
 
   private copyHeadersTo(
@@ -310,7 +324,10 @@ export class InversifyExpressServer {
     next: NextFunction,
   ): Promise<Principal> {
     if (this._AuthProvider !== undefined) {
-      const authProvider = this._container.get<AuthProvider>(TYPE.AuthProvider);
+      const authProvider = await this._container.getAsync<AuthProvider>(
+        TYPE.AuthProvider
+      );
+
       return authProvider.getUser(req, res, next);
     }
     return Promise.resolve<Principal>({

@@ -22,7 +22,7 @@ describe('Unit Test: InversifyExpressServer', () => {
     done();
   });
 
-  it('should call the configFn before the errorConfigFn', done => {
+  it('should call the configFn before the errorConfigFn', async () => {
     const middleware = (
       req: Request,
       res: Response,
@@ -52,11 +52,10 @@ describe('Unit Test: InversifyExpressServer', () => {
     expect(configFn).not.toBeCalled();
     expect(errorConfigFn).not.toBeCalled();
 
-    server.build();
+    await server.build();
 
     expect(configFn).toHaveBeenCalledTimes(1);
     expect(errorConfigFn).toHaveBeenCalledTimes(1);
-    done();
   });
 
   it('Should allow to pass a custom Router instance as config', () => {
